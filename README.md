@@ -2,7 +2,7 @@
 
 TemplateBot is a robust and scalable Discord bot template built with TypeScript, Discord.js, and Fastify. It features a clean architecture, integrated API server for observability, and easy deployment scripts.
 
-![License](https://img.shields.io/badge/license-ISC-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
 ![Discord.js](https://img.shields.io/badge/Discord.js-14.x-5865F2)
 ![Fastify](https://img.shields.io/badge/Fastify-5.x-000000)
