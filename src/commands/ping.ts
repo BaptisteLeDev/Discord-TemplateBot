@@ -9,13 +9,9 @@ import {
 import { Command } from './types';
 
 export const pingCommand: Command = {
-  data: new SlashCommandBuilder()
-    .setName('ping')
-    .setDescription('Replies with Pong!'),
+  data: new SlashCommandBuilder().setName('ping').setDescription('Replies with Pong!'),
 
-  async execute(
-    interaction: ChatInputCommandInteraction | ContextMenuCommandInteraction,
-  ) {
+  async execute(interaction: ChatInputCommandInteraction | ContextMenuCommandInteraction) {
     if (interaction.isChatInputCommand()) {
       await interaction.reply('Pong! 🏓');
     }
