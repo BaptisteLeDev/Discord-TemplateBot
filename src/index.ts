@@ -1,110 +1,56 @@
 /**
- * Application Entry Point
+ * Point d'entree — bootstrap.
  *
- * Bootstraps the application by:
- * 1. Validating configuration
- * 2. Starting the Fastify API server
- * 3. Starting the Discord bot client
+ * Ordre STRICT (standard de la flotte) :
+ *   1. Demarrer l'API HTTP EN PREMIER (health/monitoring dispo meme si le bot rate).
+ *   2. Demarrer le bot Discord ENSUITE.
  *
- * The order is critical: API must start before the bot for health monitoring.
- *
- * @module index
+ * L'echec du login Discord NE DOIT PAS empecher l'API de servir /health et /stats
+ * (le contrat exige une preuve de vie independante de l'etat de connexion Discord).
  */
+import { loadConfig } from './config';
+import { createApiServer } from './api/server';
+import { BotClient } from './client';
 
-import { bot } from './client.js';
-import { createApiServer } from './api/server.js';
-import { config, validateConfig } from './config.js';
+async function bootstrap(): Promise<void> {
+  const config = loadConfig();
+  console.log(`Demarrage du bot (env: ${config.env})`);
 
-/**
- * Bootstrap Application
- *
- * Initializes and starts all application components in the correct order.
- * Implements graceful shutdown on SIGINT and SIGTERM signals.
- *
- * @throws {Error} If API server or Discord bot fails to start
- */
-async function bootstrap() {
-  console.log('🚀 Starting TemplateBot...');
-  console.log(`📊 Environment: ${config.env}`);
+  const bot = new BotClient();
 
+  // 1. API d'abord.
+  const api = await createApiServer({
+    statsProvider: bot,
+    logger: config.isDevelopment,
+  });
+  await api.listen({ port: config.api.port, host: config.api.host });
+  console.log(`API a l'ecoute sur http://${config.api.host}:${config.api.port}`);
+
+  // 2. Bot ensuite. Un echec de login ne fait pas tomber l'API.
   try {
-    // Validate configuration before starting
-    validateConfig();
-
-    // 1. Start Internal API Server (MUST be first)
-    // This ensures health checks and monitoring are available even if bot fails
-    if (config.features.enableApi) {
-      const api = await createApiServer();
-      const address = await api.listen({
-        port: config.api.port,
-        host: config.api.host,
-      });
-      console.log(`🌐 API Server listening at ${address}`);
-
-      if (config.features.enableSwagger) {
-        console.log(`📚 Swagger UI available at ${address}/docs`);
-      }
-    }
-
-    // 2. Start Discord Bot (MUST be second)
-    // Bot depends on API for health monitoring
-    await bot.start();
-
-    console.log('✅ Application started successfully');
-
-    // Graceful shutdown handlers
-    setupGracefulShutdown();
+    await bot.start(config.discord.token);
   } catch (err) {
-    console.error('❌ Failed to start application:', err);
-    process.exit(1);
+    console.error("Echec du login Discord (l'API reste disponible) :", err);
   }
+
+  setupGracefulShutdown(async () => {
+    await bot.destroy();
+    await api.close();
+  });
 }
 
-/**
- * Setup Graceful Shutdown
- *
- * Registers signal handlers for clean application shutdown.
- * Ensures Discord bot disconnects properly and resources are released.
- */
-function setupGracefulShutdown() {
-  const shutdown = async (signal: string) => {
-    console.log(`\n⚠️  Received ${signal}, shutting down gracefully...`);
-
-    try {
-      // Destroy Discord client connection
-      await bot.destroy();
-      console.log('✅ Discord bot disconnected');
-
-      // Exit cleanly
-      process.exit(0);
-    } catch (err) {
-      console.error('❌ Error during shutdown:', err);
-      process.exit(1);
-    }
+function setupGracefulShutdown(cleanup: () => Promise<void>): void {
+  const shutdown = (signal: string): void => {
+    console.log(`Signal ${signal} recu, arret propre...`);
+    cleanup()
+      .then(() => process.exit(0))
+      .catch((err) => {
+        console.error("Erreur a l'arret :", err);
+        process.exit(1);
+      });
   };
-
-  // Handle SIGINT (Ctrl+C)
-  process.on('SIGINT', () => {
-    void shutdown('SIGINT');
-  });
-
-  // Handle SIGTERM (Docker/K8s stop)
-  process.on('SIGTERM', () => {
-    void shutdown('SIGTERM');
-  });
-
-  // Handle uncaught exceptions
-  process.on('uncaughtException', (err) => {
-    console.error('❌ Uncaught Exception:', err);
-    process.exit(1);
-  });
-
-  // Handle unhandled promise rejections
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-    process.exit(1);
-  });
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-// Start the application
 void bootstrap();

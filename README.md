@@ -1,93 +1,124 @@
-# TemplateBot
+# Discord TemplateBot
 
-TemplateBot is a robust and scalable Discord bot template built with TypeScript, Discord.js, and Fastify. It features a clean architecture, integrated API server for observability, and easy deployment scripts.
+Gabarit de bot Discord de la flotte BotDiscordFactory : runtime **Bun**, TypeScript,
+architecture **hexagonale**, contrat **monitoring** (`/health` + `/stats`). C'est un
+**squelette minimal** (une commande `/ping` + l'API de contrat), pas un bot complet :
+on le clone pour démarrer un nouveau bot, on greffe le domaine métier dans `src/domain/`.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
+![Bun](https://img.shields.io/badge/Bun-1.3-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)
 ![Discord.js](https://img.shields.io/badge/Discord.js-14.x-5865F2)
 ![Fastify](https://img.shields.io/badge/Fastify-5.x-000000)
 
-## Features
+## Caractéristiques
 
-- **TypeScript Support**: Fully typed codebase for better developer experience and reliability.
-- **Clean Architecture**: Modular structure separating commands, events, services, and API logic.
-- **Internal API**: Integrated Fastify server with Swagger UI for monitoring and control.
-- **Slash Commands**: Easy-to-use handler for registering and executing Discord slash commands.
-- **Docker Ready**: Includes scripts for containerization (optional).
+- **Runtime Bun** : pas d'étape de build, Bun exécute le TypeScript directement.
+- **Architecture hexagonale** : domaine pur isolé de Discord.js (cf. `src/domain/README.md`).
+- **Contrat monitoring** : `/health` et `/stats` à la racine, avec un port `StatsProvider`
+  qui découple l'API HTTP du client Discord (ACL).
+- **Tests `bun:test`** colocalisés, dont la **suite de contrat** (gate d'onboarding monitoring).
+- **Docker** : Dockerfile Bun de référence (non-root, `HEALTHCHECK /health`, `dotenvx`) + CI.
 
-## Architecture
-
-The project is organized into the following directory structure:
+## Structure
 
 ```
 src/
-├── api/          # Internal API server (Fastify) and routes
-├── commands/     # Discord slash command definitions and handlers
-├── services/     # Business logic and external service integrations
-├── types/        # Global type definitions
-├── utils/        # Shared utility functions
-├── client.ts     # Custom Discord Client implementation
-├── config.ts     # Configuration loader (dotenv)
-├── index.ts      # Application entry point
-└── deploy-commands.ts # Script to register slash commands
+├── domain/        # Coeur métier PUR (zéro import discord.js). Vide dans le gabarit.
+├── commands/      # Slash commands (adapters Discord) + tests colocalisés. Exemple : ping.
+├── events/        # Handlers d'évènements Discord (adapters). Vide dans le gabarit.
+├── api/           # Serveur Fastify + port StatsProvider + suite de contrat.
+├── config.ts      # loadConfig(env) : validation zod, chargement .env natif Bun.
+├── client.ts      # BotClient (adapter Discord, implémente StatsProvider).
+├── index.ts       # Bootstrap : API d'abord, bot ensuite.
+└── deploy-commands.ts  # Enregistrement des slash commands.
 ```
 
-## Getting Started
+## Démarrage
 
-### Prerequisites
+### Prérequis
 
-- Node.js (v18+)
-- pnpm (recommended) or npm/yarn
-- A Discord Bot Token and Application ID
+- [Bun](https://bun.sh) 1.3+
+- Un bot Discord (token + application ID) depuis le Developer Portal.
 
 ### Installation
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd Discord-Bot
-   ```
+```bash
+bun install
+```
 
-2. **Install dependencies:**
-   ```bash
-   pnpm install
-   ```
+### Configuration
 
-3. **Configure Environment:**
-   Copy `.example.env` to `.env` and fill in your credentials:
-   ```bash
-   cp .example.env .env
-   ```
-   
-   **`.env` variables:**
-   - `DISCORD_TOKEN`: Your bot token.
-   - `DISCORD_APPLICATION_ID`: Your bot application ID.
-   - `DISCORD_GUILD_ID`: (Optional) Guild ID for instant development command deployment.
-   - `PORT`: API server port (default: 3001).
+Copier `.env.example` en `.env` et renseigner les valeurs (Bun charge `.env` automatiquement) :
 
-4. **Deploy Commands:**
-   Register your slash commands with Discord:
-   ```bash
-   npm run deploy
-   ```
+```bash
+cp .env.example .env
+```
 
-### Running the Bot
+Variables :
+- `DISCORD_TOKEN` : token du bot.
+- `DISCORD_APPLICATION_ID` : ID de l'application.
+- `DISCORD_GUILD_ID` (optionnel) : si renseigné, les commandes se déploient sur cette
+  guild (instantané, idéal en dev). Sinon, déploiement global (jusqu'à 1h de propagation).
+- `PORT` : port de l'API (défaut 3001).
+- `HOST` : adresse d'écoute (défaut 0.0.0.0).
+- `NODE_ENV` : `development` | `production` | `test`.
 
-- **Development Mode:**
-  ```bash
-  npm run dev
-  ```
-  Starts the bot with `ts-node` and auto-restarts on changes.
+### Déployer les commandes
 
-- **Production Build:**
-  ```bash
-  npm run build
-  npm start
-  ```
+```bash
+bun src/deploy-commands.ts
+# ou : bun run deploy-commands
+```
 
-## API Documentation
+### Lancer le bot
 
-When the bot is running, access the internal API documentation at:
-`http://localhost:3001/docs`
+```bash
+# Développement (rechargement à chaud) :
+bun --watch src/index.ts    # ou : bun run dev
 
-This provides a Swagger UI to explore available endpoints.
+# Production :
+bun src/index.ts            # ou : bun run start
+```
+
+### Tests et typecheck
+
+```bash
+bun test                    # suite complète (contrat + commandes)
+bun test --watch
+bun run typecheck           # tsc --noEmit
+```
+
+## API (contrat monitoring)
+
+L'API HTTP sert le contrat publié cibles ↔ bdf-monitor, à la **racine** :
+
+| Route     | Description                                                         |
+|-----------|---------------------------------------------------------------------|
+| `GET /`        | Info API : liste des endpoints.                                |
+| `GET /health`  | Preuve de vie. Répond 2xx vite, **sans I/O Discord**.          |
+| `GET /stats`   | Métriques : `guildCount`, `userCount`, `commandsToday`, `discordLatencyMs`, `version`. |
+
+La **suite de contrat** (`src/api/contract.test.ts`) est le **gate d'onboarding** au
+registre monitoring : tant qu'elle n'est pas verte, le bot n'est pas inscrit. Côté flotte,
+un bot s'enregistre une fois que ce contrat est honoré.
+
+## Docker
+
+```bash
+docker build -t mon-bot .
+```
+
+Image `oven/bun` slim, utilisateur non-root, `HEALTHCHECK` sur `/health`, démarrage via
+`dotenvx run` (déchiffrement de `.env.production`). Pas d'étape de build : Bun exécute
+le TS. Voir `Dockerfile` et `.github/workflows/ci.yml` (le job `deploy` est un modèle
+commenté : le gabarit n'a pas d'app Dokploy).
+
+## Ajouter une commande
+
+1. Copier `src/commands/ping.ts` (et `ping.test.ts`) sous un nouveau nom.
+2. L'ajouter au registre dans `src/commands/index.ts` (`creerCommandes`).
+3. `bun src/deploy-commands.ts` pour l'enregistrer auprès de Discord.
+
+La logique métier va dans `src/domain/` (fonctions pures), la commande la branche.
+Voir `ARCHITECTURE.md` et `src/domain/README.md`.

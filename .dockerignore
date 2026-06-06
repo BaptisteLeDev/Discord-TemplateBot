@@ -1,0 +1,16 @@
+node_modules
+.git
+
+# Secrets en clair (jamais dans l'image). .env.production chiffre est COPY explicitement.
+.env
+.env.example
+.env.local
+.env.keys
+
+# Doc : inutile au runtime.
+*.md
+
+# Outillage agent / IDE.
+.serena
+.vscode
+.idea

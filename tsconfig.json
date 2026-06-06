@@ -1,28 +1,24 @@
 {
   "compilerOptions": {
-    /* Language and Environment */
-    "target": "ES2022",
-    "lib": ["ES2022"],
+    /* Runtime Bun : pas de build, Bun execute le TS. tsc sert au typecheck (--noEmit). */
+    "target": "ESNext",
+    "lib": ["ESNext"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "ignoreDeprecations": "6.0",
+    "moduleDetection": "force",
+    "types": ["bun"],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
 
-    /* Emit */
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./dist",
-    "removeComments": true,
-    "importHelpers": true,
-
-    /* Interop Constraints */
+    /* Interop */
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
 
-    /* Type Checking */
+    /* Type checking strict */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -35,20 +31,8 @@
     "allowUnreachableCode": false,
     "exactOptionalPropertyTypes": true,
 
-    /* Completeness */
-    "skipLibCheck": true,
-
-    /* Path Aliases */
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"],
-      "@commands/*": ["src/commands/*"],
-      "@services/*": ["src/services/*"],
-      "@types/*": ["src/types/*"],
-      "@utils/*": ["src/utils/*"],
-      "@api/*": ["src/api/*"]
-    }
+    "skipLibCheck": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": ["node_modules"]
 }

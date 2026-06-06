@@ -1,0 +1,61 @@
+# Quality gate du gabarit. Le job `gate` est actif. Le job `deploy` (CD vers Dokploy)
+# est fourni en commentaire-modele : le template n'a pas d'app Dokploy. Le decommenter
+# et renseigner les secrets dans un vrai bot derive.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+      - name: Build image (verification)
+        run: docker build -t discord-template-bot:ci .
+      - name: Smoke test conteneur (/health)
+        run: |
+          # On bypasse dotenvx (pas de .env.production en CI) : --entrypoint bun.
+          # Token Discord factice : le login echoue mais l'API sert /health quand
+          # meme (src/index.ts demarre l'API avant le bot, login dans un try/catch).
+          docker run -d --rm --name smoke \
+            -e DISCORD_TOKEN=smoke \
+            -e DISCORD_APPLICATION_ID=smoke \
+            -e NODE_ENV=production \
+            -p 3001:3001 --entrypoint bun discord-template-bot:ci src/index.ts
+          for i in $(seq 1 10); do
+            if curl -fsS http://localhost:3001/health; then ok=1; break; fi; sleep 1;
+          done
+          docker stop smoke || true
+          test "$ok" = "1"
+
+  # --- MODELE : CD gated vers Dokploy (a decommenter dans un bot derive) ---
+  # Le VPS reste dark : aucun webhook public, le runner rejoint le tailnet puis
+  # appelle l'API Dokploy. Renseigner les secrets du repo avant d'activer.
+  #
+  # deploy:
+  #   needs: gate
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   runs-on: ubuntu-latest
+  #   environment: production
+  #   steps:
+  #     - name: Rejoindre le tailnet (cle OAuth ephemere)
+  #       uses: tailscale/github-action@v3
+  #       with:
+  #         oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+  #         oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+  #         tags: tag:ci
+  #     - name: Redeploy via API Dokploy
+  #       run: |
+  #         curl -fsS -X POST "${{ secrets.DOKPLOY_BASE_URL }}/api/application.redeploy" \
+  #           -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+  #           -H "Content-Type: application/json" \
+  #           -d '{"applicationId": "${{ secrets.DOKPLOY_APP_ID }}"}'

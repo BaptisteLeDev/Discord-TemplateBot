@@ -1,51 +1,38 @@
-# Dependencies
+# Dependencies (Bun)
 node_modules/
-pnpm-lock.yaml
-.pnpm-store/
 
-# Build outputs
+# Build outputs (Bun execute le TS, pas de build par defaut)
 dist/
 build/
 *.tsbuildinfo
 *.js.map
 
-# Environment variables
+# Secrets en clair (jamais committes).
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+# .env.production est chiffre par dotenvx et committe : seule DOTENV_PRIVATE_KEY
+# (hors repo) permet de le dechiffrer.
+!.env.production
+.env.keys
 
 # Logs
 logs/
 *.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
 
-# Testing
-coverage/
-.nyc_output/
-*.lcov
-
-# IDE
+# IDE / outillage agent
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
+.serena/
 
 # OS
+.DS_Store
 Thumbs.db
 desktop.ini
 
-# Temporary files
+# Temporaires
 *.tmp
 *.temp
 .cache/
-
-# Debug
-.vscode-test/
-playwright-report/
-test-results/

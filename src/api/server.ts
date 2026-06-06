@@ -1,168 +1,52 @@
 /**
- * Fastify API Server Module
+ * Serveur API Fastify du gabarit.
  *
- * Creates and configures the Fastify API server with:
- * - OpenAPI/Swagger documentation
- * - CORS support
- * - Request logging
- * - Error handling
- * - Health checks
+ * Expose le contrat monitoring cibles ↔ bdf-monitor :
+ *   - GET /health : preuve de vie. 2xx rapide, SANS I/O Discord.
+ *   - GET /stats  : metriques metier (guildCount / userCount / ...).
+ *   - GET /       : info API (racine).
  *
- * @module api/server
+ * L'API ne depend pas de Discord.js : elle recoit un StatsProvider (port). C'est
+ * l'ACL ciblee — le modele Discord ne fuit pas dans la couche HTTP.
  */
-
-import Fastify, { FastifyInstance, type FastifyError, type FastifyServerOptions } from 'fastify';
-import swagger from '@fastify/swagger';
-import swaggerUi from '@fastify/swagger-ui';
+import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
-import { config } from '../config.js';
-import botRoutes from './bot.api.js';
+import type { StatsProvider } from './stats-provider';
+
+export interface ApiServerOptions {
+  statsProvider: StatsProvider;
+  /** Active les logs Fastify (desactives en test pour une sortie propre). */
+  logger?: boolean;
+}
 
 /**
- * Create and Configure API Server
- *
- * Initializes a Fastify server with all necessary plugins and routes.
- * Includes comprehensive logging, error handling, and API documentation.
- *
- * @returns Configured Fastify instance
- *
- * @example
- * ```ts
- * const api = await createApiServer();
- * await api.listen({ port: 3001, host: '0.0.0.0' });
- * ```
+ * Construit et configure l'instance Fastify (sans l'ecouter : le bootstrap
+ * appelle `.listen`). Retourne l'instance pour permettre `.inject` en test.
  */
-export async function createApiServer(): Promise<FastifyInstance> {
-  // Configure logger with proper typing to satisfy exactOptionalPropertyTypes
-  const logger: FastifyServerOptions['logger'] = config.isDevelopment
-    ? {
-        level: config.logging.level,
-        transport: {
-          target: 'pino-pretty',
-          options: {
-            translateTime: 'HH:MM:ss Z',
-            ignore: 'pid,hostname',
-            colorize: true,
-          },
-        },
-      }
-    : {
-        level: config.logging.level,
-      };
+export async function createApiServer(options: ApiServerOptions): Promise<FastifyInstance> {
+  const { statsProvider, logger = false } = options;
 
-  // Create Fastify instance with logging configuration
-  const fastify = Fastify({
-    logger,
-    requestIdLogLabel: 'reqId',
-    disableRequestLogging: false,
-    trustProxy: true,
-  });
+  const app = Fastify({ logger });
 
-  // Register global error handler
-  fastify.setErrorHandler<FastifyError>((error, request, reply) => {
+  app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
-
-    // Don't leak error details in production
-    const statusCode = error.statusCode ?? 500;
-    const message = config.isDevelopment ? error.message : 'Internal Server Error';
-
-    void reply.status(statusCode).send({
-      error: 'Internal Server Error',
-      message,
-      statusCode,
-    });
+    void reply.status(error.statusCode ?? 500).send({ error: 'Internal Server Error' });
   });
 
-  // Enable CORS for browser requests
-  await fastify.register(cors, {
-    origin: config.isDevelopment ? true : false, // Restrict in production
-    credentials: true,
-  });
+  await app.register(cors, { origin: true });
 
-  // Register OpenAPI/Swagger documentation
-  if (config.features.enableSwagger) {
-    await fastify.register(swagger, {
-      openapi: {
-        openapi: '3.1.0',
-        info: {
-          title: 'Discord TemplateBot API',
-          description: 'REST API for Discord bot statistics, health monitoring, and control',
-          version: '1.0.0',
-          contact: {
-            name: 'BotDiscordFactory',
-            url: 'https://github.com/your-username/bot-discord-factory',
-          },
-          license: {
-            name: 'MIT',
-            url: 'https://opensource.org/licenses/MIT',
-          },
-        },
-        servers: [
-          {
-            url: `http://localhost:${config.api.port}`,
-            description: 'Development server',
-          },
-        ],
-        tags: [
-          {
-            name: 'health',
-            description: 'Health check and monitoring endpoints',
-          },
-          {
-            name: 'bot',
-            description: 'Bot statistics and information endpoints',
-          },
-        ],
-      },
-    });
-
-    // Register Swagger UI
-    await fastify.register(swaggerUi, {
-      routePrefix: '/docs',
-      uiConfig: {
-        docExpansion: 'list',
-        deepLinking: true,
-        filter: true,
-        showCommonExtensions: true,
-        syntaxHighlight: {
-          activate: true,
-          theme: 'monokai',
-        },
-      },
-      staticCSP: true,
-      transformStaticCSP: (header) => header,
-    });
-  }
-
-  // Root endpoint - API information
-  fastify.get('/', () => ({
+  // Racine — info API.
+  app.get('/', () => ({
     name: 'Discord TemplateBot API',
-    version: '1.0.0',
-    docs: config.features.enableSwagger ? '/docs' : 'Disabled in production',
-    endpoints: {
-      health: '/health',
-      website: '/website/*',
-    },
+    endpoints: { health: '/health', stats: '/stats' },
   }));
 
-  // Global health check endpoint
-  fastify.get('/health', () => ({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: config.env,
-  }));
+  // Preuve de vie. Ne touche PAS Discord : repond immediatement (invariant contrat).
+  app.get('/health', () => ({ status: 'ok', uptime: process.uptime() }));
 
-  // Register bot-specific routes
-  await fastify.register(botRoutes, { prefix: '/website' });
+  // Metriques metier — noms imposes par le contrat publie.
+  app.get('/stats', () => statsProvider.getStats());
 
-  // Log registered routes in development
-  if (config.isDevelopment) {
-    fastify.ready(() => {
-      console.log('📋 Registered routes:');
-      console.log(fastify.printRoutes());
-    });
-  }
-
-  return fastify;
+  await app.ready();
+  return app;
 }
