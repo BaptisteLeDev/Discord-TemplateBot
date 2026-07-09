@@ -8,11 +8,11 @@
  * Les commandes/events sont les adapters qui traduisent une interaction vers
  * le domaine pur (src/domain). Le gabarit ne livre que /ping comme exemple.
  */
-import { Client, Collection, Events, GatewayIntentBits, type Interaction } from 'discord.js';
-import type { Command } from './commands/types';
-import { creerCommandes } from './commands/index';
-import type { BotStats, StatsProvider } from './api/stats-provider';
-import packageJson from '../package.json' with { type: 'json' };
+import { Client, Collection, Events, GatewayIntentBits, type Interaction } from "discord.js";
+import type { Command } from "./commands/types";
+import { creerCommandes } from "./commands/index";
+import type { BotStats, StatsProvider } from "./api/stats-provider";
+import packageJson from "../package.json" with { type: "json" };
 
 export class BotClient extends Client implements StatsProvider {
   public readonly commands = new Collection<string, Command>();
@@ -31,7 +31,7 @@ export class BotClient extends Client implements StatsProvider {
     this.on(Events.InteractionCreate, (interaction) => {
       void this.handleInteraction(interaction);
     });
-    this.on(Events.Error, (err) => console.error('Erreur client Discord :', err));
+    this.on(Events.Error, (err) => console.error("Erreur client Discord :", err));
   }
 
   private async handleInteraction(interaction: Interaction): Promise<void> {
@@ -57,7 +57,7 @@ export class BotClient extends Client implements StatsProvider {
       await command.execute(interaction);
     } catch (err) {
       console.error(`Erreur a l'execution de /${interaction.commandName} :`, err);
-      const payload = { content: 'Une erreur est survenue.', ephemeral: true };
+      const payload = { content: "Une erreur est survenue.", ephemeral: true };
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(payload);
       } else {

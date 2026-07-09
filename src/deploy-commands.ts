@@ -6,14 +6,14 @@
  *
  *   bun run deploy-commands
  */
-import { REST, Routes } from 'discord.js';
-import { loadConfig } from './config';
-import { creerCommandes } from './commands/index';
+import { REST, Routes } from "discord.js";
+import { loadConfig } from "./config";
+import { creerCommandes } from "./commands/index";
 
 async function deploy(): Promise<void> {
   const config = loadConfig();
   const body = creerCommandes().map((c) => c.data.toJSON());
-  const rest = new REST({ version: '10' }).setToken(config.discord.token);
+  const rest = new REST({ version: "10" }).setToken(config.discord.token);
 
   if (config.discord.guildId) {
     console.log(`Deploiement de ${body.length} commande(s) sur la guild ${config.discord.guildId}`);
@@ -25,7 +25,7 @@ async function deploy(): Promise<void> {
     console.log(`Deploiement global de ${body.length} commande(s) (jusqu'a 1h de propagation)`);
     await rest.put(Routes.applicationCommands(config.discord.applicationId), { body });
   }
-  console.log('Commandes deployees.');
+  console.log("Commandes deployees.");
 }
 
 void deploy();

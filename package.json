@@ -11,6 +11,10 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint src",
+    "lint:fix": "oxlint --fix src",
+    "format": "oxfmt --write src",
+    "format:check": "oxfmt --check src",
     "deploy-commands": "bun src/deploy-commands.ts"
   },
   "keywords": [
@@ -25,13 +29,16 @@
   "author": "BotDiscordFactory",
   "license": "MIT",
   "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@fastify/rate-limit": "^11.1.0",
     "discord.js": "^14.16.3",
     "fastify": "^5.2.0",
-    "@fastify/cors": "^10.0.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
+    "oxfmt": "^0.58.0",
+    "oxlint": "^1.73.0",
     "typescript": "^5.7.3"
   }
 }

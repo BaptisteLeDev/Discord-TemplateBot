@@ -1,5 +1,5 @@
 /**
- * Point d'entree — bootstrap.
+ * Point d'entree - bootstrap.
  *
  * Ordre STRICT (standard de la flotte) :
  *   1. Demarrer l'API HTTP EN PREMIER (health/monitoring dispo meme si le bot rate).
@@ -8,9 +8,9 @@
  * L'echec du login Discord NE DOIT PAS empecher l'API de servir /health et /stats
  * (le contrat exige une preuve de vie independante de l'etat de connexion Discord).
  */
-import { loadConfig } from './config';
-import { createApiServer } from './api/server';
-import { BotClient } from './client';
+import { loadConfig } from "./config";
+import { createApiServer } from "./api/server";
+import { BotClient } from "./client";
 
 async function bootstrap(): Promise<void> {
   const config = loadConfig();
@@ -22,6 +22,8 @@ async function bootstrap(): Promise<void> {
   const api = await createApiServer({
     statsProvider: bot,
     logger: config.isDevelopment,
+    statsToken: config.api.statsToken,
+    corsOrigins: config.api.corsOrigins,
   });
   await api.listen({ port: config.api.port, host: config.api.host });
   console.log(`API a l'ecoute sur http://${config.api.host}:${config.api.port}`);
@@ -49,8 +51,8 @@ function setupGracefulShutdown(cleanup: () => Promise<void>): void {
         process.exit(1);
       });
   };
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
 void bootstrap();

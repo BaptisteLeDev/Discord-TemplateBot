@@ -11,7 +11,7 @@ import type {
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,
   SlashCommandSubcommandsOnlyBuilder,
-} from 'discord.js';
+} from "discord.js";
 
 export type CommandData =
   | SlashCommandBuilder

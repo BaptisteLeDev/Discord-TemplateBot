@@ -1,4 +1,4 @@
-# Domaine (bounded context) — gabarit
+# Domaine (bounded context) - gabarit
 
 > Cœur métier du bot. **Pur** : aucune dépendance à `discord.js`, à Fastify ou à
 > l'I/O. C'est l'invariant que protège l'architecture hexagonale.

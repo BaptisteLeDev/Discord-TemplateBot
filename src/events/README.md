@@ -1,4 +1,4 @@
-# Events — handlers d'évènements Discord (adapters)
+# Events - handlers d'évènements Discord (adapters)
 
 > Dossier **volontairement vide** dans le gabarit.
 
