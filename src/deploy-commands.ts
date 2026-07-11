@@ -9,8 +9,9 @@
 import { REST, Routes } from "discord.js";
 import { loadConfig } from "./config";
 import { creerCommandes } from "./commands/index";
+import { executerAuDemarrage } from "./run-entrypoint";
 
-async function deploy(): Promise<void> {
+export async function deploy(): Promise<void> {
   const config = loadConfig();
   const body = creerCommandes().map((c) => c.data.toJSON());
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -28,4 +29,9 @@ async function deploy(): Promise<void> {
   console.log("Commandes deployees.");
 }
 
-void deploy();
+// Tout rejet (token invalide, 401, reseau) -> log + exit 1 actionnable au lieu d'un
+// unhandledRejection muet. Garde `import.meta.main` : importer ce module (test) ne
+// declenche pas le deploiement.
+if (import.meta.main) {
+  void executerAuDemarrage("deploy", deploy);
+}

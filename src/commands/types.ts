@@ -12,6 +12,8 @@ import type {
   SlashCommandOptionsOnlyBuilder,
   SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
+import type { GuildSettingsStore } from "../guildsettings/store";
+import type { EmbedThemé } from "../theming/embed";
 
 export type CommandData =
   | SlashCommandBuilder
@@ -23,4 +25,14 @@ export interface Command {
   execute(interaction: ChatInputCommandInteraction): Promise<void>;
   /** Optionnel : autocompletion d'une option. */
   autocomplete?(interaction: AutocompleteInteraction): Promise<void>;
+}
+
+/**
+ * Dependances injectees aux commandes a la composition (socle de flotte) : source des
+ * reglages par guilde et fabrique d'embeds themes. Une commande consomme le socle via
+ * ces ports, jamais via une source brute (mandat ARCHITECTURE.md).
+ */
+export interface CommandeDeps {
+  readonly settingsStore: GuildSettingsStore;
+  readonly embedFactory: EmbedThemé;
 }

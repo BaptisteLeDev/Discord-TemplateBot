@@ -23,6 +23,10 @@ const envSchema = z.object({
   // Allowlist CORS (origines séparées par des virgules). Vide = CORS fermé (défaut sûr).
   STATS_CORS_ORIGINS: z.string().optional(),
 
+  // Persistance (Neon/Postgres) — OPTIONNELLE. Absente = stores en memoire (socle de
+  // personnalisation par serveur). Presente = adapter drizzle branche au boot.
+  DATABASE_URL: z.string().min(1).optional(),
+
   // Environnement
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });
@@ -40,6 +44,8 @@ export interface Config {
     guildId: string | undefined;
   };
   api: { port: number; host: string; statsToken: string | undefined; corsOrigins: string[] };
+  /** URL Postgres/Neon. `undefined` = persistance desactivee (stores en memoire). */
+  databaseUrl: string | undefined;
   env: Env["NODE_ENV"];
   isDevelopment: boolean;
   isProduction: boolean;
@@ -82,6 +88,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       guildId: e.DISCORD_GUILD_ID,
     },
     api: { port: e.PORT, host: e.HOST, statsToken: e.STATS_TOKEN, corsOrigins },
+    databaseUrl: e.DATABASE_URL,
     env: e.NODE_ENV,
     isDevelopment: e.NODE_ENV === "development",
     isProduction: e.NODE_ENV === "production",
