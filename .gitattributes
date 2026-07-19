@@ -1,0 +1,3 @@
+# Drizzle : SQL de migration et métadonnées toujours en LF (hash stables cross-OS — dette #17)
+*.sql text eol=lf
+drizzle/meta/*.json text eol=lf
