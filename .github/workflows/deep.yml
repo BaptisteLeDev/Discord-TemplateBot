@@ -63,7 +63,7 @@ jobs:
       # consomme par sonar.javascript.lcov.reportPaths (cf. sonar-project.properties).
       # - run: bun test --coverage --coverage-reporter=lcov
       - name: SonarQube scan
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@v8
         env:
           # En LOCAL via act, injecter ces valeurs par la CLI act (fichier .secrets ou -s) :
           #   SONAR_HOST_URL vers le SonarQube Podman (http://host.containers.internal:9000)
