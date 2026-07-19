@@ -1,0 +1,96 @@
+# Etage 2 - CI LOURDE, destinee a tourner en LOCAL (via `act` + Podman), pas en ligne.
+#
+# `workflow_dispatch` UNIQUEMENT : aucun push / pull_request / schedule => ce workflow ne
+# se declenche JAMAIS tout seul sur GitHub (zero minute GitHub Actions facturee). C'est le
+# but : deporter le compute lourd sur le poste dev. Mode d'emploi complet : docs/local-ci.md.
+#
+#   act workflow_dispatch -W .github/workflows/deep.yml \
+#     --container-daemon-socket unix:///run/user/1000/podman/podman.sock
+#
+# Jobs (deplaces hors de la CI online pour economiser le billing) :
+#   - build-smoke : build de l'image Docker + smoke test /health (repris de l'ancien ci.yml)
+#   - sonarqube   : sonar-scanner vers un SonarQube LOCAL (Podman, cf. docs/local-ci.md)
+#   - codeql      : voir la GARDE plus bas. L'action github/codeql-action uploade du SARIF
+#                   vers GitHub => elle ne tourne pas en autonomie via act. En LOCAL on passe
+#                   par la CodeQL CLI (database create + analyze). Job laisse COMMENTE.
+name: Deep (local via act)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image (verification)
+        run: docker build -t discord-template-bot:ci .
+      - name: Smoke test conteneur (/health)
+        run: |
+          # On bypasse dotenvx (pas de .env.production ici) : --entrypoint bun.
+          # Token Discord factice : le login echoue mais l'API sert /health quand meme
+          # (src/index.ts demarre l'API avant le bot, login dans un try/catch).
+          docker run -d --rm --name smoke \
+            -e DISCORD_TOKEN=smoke \
+            -e DISCORD_APPLICATION_ID=smoke \
+            -e NODE_ENV=production \
+            --entrypoint bun discord-template-bot:ci src/index.ts
+          # Sonde DEPUIS le conteneur (docker exec, meme trick que le HEALTHCHECK du
+          # Dockerfile). Marche que le job tourne sur le host (GitHub) ou dans un conteneur
+          # soeur (act+Podman) : pas de port publie a joindre, donc pas de piege reseau DinD.
+          ok=
+          for i in $(seq 1 10); do
+            if docker exec smoke bun -e "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then ok=1; break; fi
+            sleep 1
+          done
+          docker stop smoke || true
+          test "$ok" = "1"
+
+  sonarqube:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Sonar exploite l'historique (blame, detection new code)
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+      - run: bun install --frozen-lockfile
+      # Couverture pour Sonar (optionnel) : bun test --coverage produit coverage/lcov.info,
+      # consomme par sonar.javascript.lcov.reportPaths (cf. sonar-project.properties).
+      # - run: bun test --coverage --coverage-reporter=lcov
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          # En LOCAL via act, injecter ces valeurs par la CLI act (fichier .secrets ou -s) :
+          #   SONAR_HOST_URL vers le SonarQube Podman (http://host.containers.internal:9000)
+          #   SONAR_TOKEN    = jeton genere dans SonarQube. Voir docs/local-ci.md.
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  # --- GARDE : CodeQL ---
+  # L'action github/codeql-action/analyze UPLOADE le SARIF vers GitHub code scanning
+  # (necessite l'infra GitHub : `security-events: write` + code scanning actif). Elle ne
+  # fonctionne donc PAS de facon autonome via `act` en local. En LOCAL, on lance CodeQL avec
+  # la CodeQL CLI : `codeql database create` (langage javascript-typescript) puis
+  # `codeql database analyze ... --format=sarif-latest --output=codeql.sarif`. Commandes
+  # exactes dans docs/local-ci.md. Le job reste COMMENTE : ne l'activer que si un jour ce
+  # workflow devait tourner sur GitHub (ce qui casserait la promesse zero-billing).
+  #
+  # codeql:
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     security-events: write
+  #     contents: read
+  #     actions: read
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Initialiser CodeQL
+  #       uses: github/codeql-action/init@v3
+  #       with:
+  #         languages: javascript-typescript
+  #     - name: Analyse CodeQL
+  #       uses: github/codeql-action/analyze@v3

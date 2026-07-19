@@ -15,6 +15,14 @@ build/
 # (hors repo) permet de le dechiffrer.
 !.env.production
 .env.keys
+# Secrets locaux pour `act` (CI etage 2 en local) : JAMAIS committes.
+.secrets
+.secrets.*
+
+# Artefacts d'analyse locale (CI etage 2 : CodeQL / SonarQube)
+codeql-db/
+*.sarif
+.scannerwork/
 
 # Logs
 logs/

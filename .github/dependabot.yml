@@ -1,0 +1,43 @@
+# Dependabot : mises a jour de dependances, groupees pour limiter le bruit de PR.
+#
+#   - npm            : Dependabot lit package.json. L'ecosysteme "npm" couvre les projets
+#                      Bun (il met a jour les versions declarees dans package.json ; il ne
+#                      parse pas encore bun.lock, mais un `bun install` regenere le lock).
+#   - github-actions : garde les actions des workflows (checkout, setup-bun, osv-scanner...)
+#                      a jour et epinglees.
+#
+# Cadence hebdo. Les mises a jour mineures/patch sont REGROUPEES en une seule PR par
+# ecosysteme : moins de bruit, moins de runs CI declenches (coherent avec l'objectif billing).
+# Les mises a jour MAJEURES restent des PR separees (breaking changes a relire une par une).
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      actions-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"

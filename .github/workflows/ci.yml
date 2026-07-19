@@ -1,5 +1,20 @@
-# Quality gate du gabarit. Le job `gate` est actif. Le job `deploy` (CD vers Dokploy)
-# est fourni en commentaire-modele : le template n'a pas d'app Dokploy. Le decommenter
+# Strategie CI a DEUX ETAGES (pour ne pas exploser le billing GitHub Actions).
+#
+#   Etage 1 - ONLINE (ce fichier) : uniquement les verifications RAPIDES et peu couteuses
+#     (install + typecheck + lint + bun test). Se declenche sur push main + pull_request.
+#     La `concurrency` annule les runs redondants d'une meme ref => on ne paie pas deux fois
+#     pour des commits qui se succedent vite sur une PR.
+#
+#   Etage 2 - LOCAL (.github/workflows/deep.yml) : les jobs LOURDS (build image Docker,
+#     smoke test /health, SonarQube, CodeQL). `workflow_dispatch` UNIQUEMENT => ne se
+#     declenche JAMAIS tout seul en ligne (zero minute facturee). On les execute en LOCAL
+#     via `act` + Podman. Mode d'emploi : docs/local-ci.md.
+#
+#   Securite : audit de vulnerabilites des dependances = cron hebdomadaire separe et leger
+#     dans .github/workflows/security-audit.yml.
+#
+# Le job `deploy` (CD gated vers Dokploy via le tailnet ; VPS dark, cf. ADR-0005) reste
+# fourni en commentaire-modele : le gabarit n'a pas d'app Dokploy a cibler. Le decommenter
 # et renseigner les secrets dans un vrai bot derive.
 name: CI
 
@@ -7,6 +22,14 @@ on:
   push:
     branches: [main]
   pull_request:
+
+# Annule le run en cours si un nouveau commit arrive sur la meme ref (economie de minutes).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   gate:
@@ -18,24 +41,8 @@ jobs:
           bun-version: '1.3.11'
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
+      - run: bun run lint
       - run: bun test
-      - name: Build image (verification)
-        run: docker build -t discord-template-bot:ci .
-      - name: Smoke test conteneur (/health)
-        run: |
-          # On bypasse dotenvx (pas de .env.production en CI) : --entrypoint bun.
-          # Token Discord factice : le login echoue mais l'API sert /health quand
-          # meme (src/index.ts demarre l'API avant le bot, login dans un try/catch).
-          docker run -d --rm --name smoke \
-            -e DISCORD_TOKEN=smoke \
-            -e DISCORD_APPLICATION_ID=smoke \
-            -e NODE_ENV=production \
-            -p 3001:3001 --entrypoint bun discord-template-bot:ci src/index.ts
-          for i in $(seq 1 10); do
-            if curl -fsS http://localhost:3001/health; then ok=1; break; fi; sleep 1;
-          done
-          docker stop smoke || true
-          test "$ok" = "1"
 
   # --- MODELE : CD gated vers Dokploy (a decommenter dans un bot derive) ---
   # Le VPS reste dark : aucun webhook public, le runner rejoint le tailnet puis

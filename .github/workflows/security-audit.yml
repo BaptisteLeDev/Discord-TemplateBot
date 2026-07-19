@@ -1,0 +1,58 @@
+# Cron de securite hebdomadaire : audit des vulnerabilites des dependances.
+# LEGER par design - pas de build, pas de conteneur, pas de smoke. Quelques secondes de
+# compute par semaine (+ a la demande via workflow_dispatch).
+#
+# CHOIX DE L'OUTIL : `bun audit` (natif Bun).
+#   - Lit directement bun.lock (le lockfile de la flotte) : couverture garantie du graphe
+#     de dependances reel, sans conversion ni action tierce a epingler/faire confiance.
+#   - Interroge la base d'avis GitHub/npm ; exit code 1 si une vuln est listee.
+#   - Ne depend PAS de l'upload de SARIF vers le code scanning (donc pas de permission
+#     `security-events: write`, pas de GitHub Advanced Security requise sur repo prive).
+#   => c'est l'"equivalent fiable pour un lockfile Bun" : cout minimal, zero infra GitHub.
+#
+# `--audit-level=high` : on ne fait echouer le cron que sur les vulns high/critical, pour
+# eviter le bruit d'une vuln low sur une devDependency. Ajuster si besoin (low|moderate).
+#
+# Alternative OSV (base OSV : GHSA + distro + plus, avec dashboard code scanning) : voir le
+# job `osv` commente plus bas. Il utilise le reusable workflow officiel, qui UPLOADE du SARIF
+# vers GitHub (infra GitHub + permission dediee) : a n'activer que si ce dashboard est voulu.
+name: Security audit
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # tous les lundis a 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+      - run: bun install --frozen-lockfile
+      - name: Audit des dependances (bun audit)
+        run: bun audit --audit-level=high
+
+  # --- OPTION : scan OSV officiel (base OSV + dashboard GitHub code scanning) ---
+  # Necessite `security-events: write` et le code scanning actif (gratuit sur repo PUBLIC ;
+  # GitHub Advanced Security requis sur repo PRIVE). Uploade du SARIF => infra GitHub.
+  # osv-scanner v2 parse bun.lock (extracteur bunlock de osv-scalibr).
+  #
+  # osv:
+  #   permissions:
+  #     actions: read
+  #     contents: read
+  #     security-events: write
+  #   uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8
+  #   with:
+  #     scan-args: |-
+  #       --lockfile=bun.lock
